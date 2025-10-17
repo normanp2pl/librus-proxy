@@ -2,7 +2,7 @@
 
 Minimalne Node.js API do odczytu danych z Librus Synergia (oceny, plan lekcji, wiadomości, prace domowe).
 
-Użyta biblioteka (zewnętrzny tool): [TU_WKLEJ_LINK_DO_NARZĘDZIA_NODE.JS]
+Użyta biblioteka (zewnętrzny tool): [librus-api by Mati365](https://github.com/Mati365/librus-api)
 
 API może działać jako samodzielny serwer (Docker) oraz integrować się z Home Assistant (REST + template sensors).
 
