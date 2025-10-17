@@ -38,18 +38,41 @@ PORT=3000
 API_KEY=opcjonalny_klucz_api
 ```
 
-## 2. Uruchomienie w Dockerze
+## 2a. Uruchomienie w Dockerze
 
 ```bash
 docker compose up -d --build
 ```
 
-Po uruchomieniu:
+## 2b. Uruchomienie z gotowych obrazów Dockera
+
+Gotowy obraz dostępny publicznie w Docker Hub:
+
+```bash
+docker pull normanp2pl/librus-proxy:latest
+```
+
+lub, alternatywnie, w GitHub Container Registry (GHCR):
+
+```bash
+docker pull ghcr.io/normanp2pl/librus-proxy:latest
+```
+
+Można go uruchomić lokalnie np. tak:
+
+```bash
+
+docker run --rm -p 3300:3000 \
+  -e LIBRUS_LOGIN=twoj_login \
+  -e LIBRUS_PASSWORD=twoje_haslo \
+  -e STUDENT_INDEX=0 \
+  normanp2pl/librus-proxy:latest
+```
+
+## 3. Po uruchomieniu:
 
 - Swagger UI: http://localhost:3000/docs
 - Healthcheck: http://localhost:3000/healthz
-
-## 3. Endpointy
 
 - /grades	Oceny i przedmioty
 - /timetable	Plan lekcji (tydzień)
@@ -301,13 +324,29 @@ Lovelace (GUI) - przykładowy wpis do GUI HA
           - entity: sensor.librus_latest_grade
             name: Ostatnia ocena
 ```
+## 6. Continuous Integration (GitHub Actions)
 
-## 6. Bezpieczeństwo
+Repozytorium zawiera gotowy workflow GitHub Actions (`.github/workflows/docker.yml`),  
+który automatycznie:
+
+- buduje obraz Dockera dla architektur `amd64` i `arm64`,
+- publikuje go do **GitHub Container Registry (GHCR)** oraz **Docker Hub**,
+- taguje obraz jako:
+  - `latest` (dla gałęzi `main`),
+  - `vX.Y.Z` (dla tagów wersji),
+  - oraz `sha-<commit>` (dla każdego commitu).
+
+Workflow uruchamia się automatycznie po każdym:
+- `git push` do gałęzi `main`,
+- utworzeniu taga `v*.*.*`,
+- lub ręcznie z poziomu GitHub Actions (`Run workflow` → `docker`).
+
+## 7. Bezpieczeństwo
 
 Jeśli ustawisz zmienną API_KEY, API będzie wymagało nagłówka X-API-Key w żądaniach.
 W Home Assistant dodaj odpowiedni nagłówek w integracji REST.
 
-## 7. Licencja / zastrzeżenia
+## 8. Licencja / zastrzeżenia
 
 Projekt ma charakter edukacyjny i nie jest powiązany z Librus Sp. z o.o.
 Dane logowania używane są wyłącznie do autoryzacji sesji; nie są przechowywane w bazie.
