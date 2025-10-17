@@ -63,16 +63,27 @@ jobs:
           provenance: false
           sbom: false
 
-      # --- Docker Hub (opcjonalnie) ---
+      # --- Wykryj, czy Docker Hub ma być włączony (tu wolno używać secrets) ---
+      - name: Determine Docker Hub availability
+        id: dh_flags
+        shell: bash
+        run: |
+          if [[ -n "${{ secrets.DOCKERHUB_USERNAME }}" && -n "${{ secrets.DOCKERHUB_TOKEN }}" && -n "${{ env.DOCKERHUB_NAMESPACE }}" ]]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # --- Docker Hub (opcjonalnie, tylko gdy enabled=true) ---
       - name: Login to Docker Hub
-        if: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' && env.DOCKERHUB_NAMESPACE != '' }}
+        if: ${{ steps.dh_flags.outputs.enabled == 'true' }}
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Extract Docker metadata (Docker Hub)
-        if: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' && env.DOCKERHUB_NAMESPACE != '' }}
+        if: ${{ steps.dh_flags.outputs.enabled == 'true' }}
         id: meta_dh
         uses: docker/metadata-action@v5
         with:
@@ -87,7 +98,7 @@ jobs:
             org.opencontainers.image.source=${{ github.repository }}
 
       - name: Build & Push to Docker Hub (multi-arch)
-        if: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' && env.DOCKERHUB_NAMESPACE != '' }}
+        if: ${{ steps.dh_flags.outputs.enabled == 'true' }}
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -102,7 +113,8 @@ jobs:
         run: |
           echo "GHCR tags:"
           echo "${{ steps.meta_ghcr.outputs.tags }}"
-          if [ -n "${{ steps.meta_dh.outcome }}" ]; then
+          echo "Docker Hub enabled: ${{ steps.dh_flags.outputs.enabled }}"
+          if [ "${{ steps.dh_flags.outputs.enabled }}" = "true" ]; then
             echo "Docker Hub tags:"
             echo "${{ steps.meta_dh.outputs.tags }}"
           fi
