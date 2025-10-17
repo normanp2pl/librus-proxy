@@ -1,0 +1,15 @@
+version: "3.9"
+services:
+  librus-api:
+    build: .
+    image: yourname/librus-proxy:latest
+    container_name: librus-proxy
+    restart: unless-stopped
+    environment:
+      LIBRUS_LOGIN: ${LIBRUS_LOGIN}
+      LIBRUS_PASSWORD: ${LIBRUS_PASSWORD}
+      STUDENT_INDEX: ${STUDENT_INDEX:-0}
+      PORT: 3000
+      API_KEY: ${API_KEY:-}
+    ports:
+      - "${PORT}:3000"

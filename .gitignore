@@ -1,0 +1,21 @@
+# Node / JS
+node_modules/
+npm-debug.log*
+yarn-error.log
+package-lock.json*
+
+# Env / secrets
+.env
+.env.*.local
+*.pem
+*.key
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Docker artifacts
+docker-compose.override.yml

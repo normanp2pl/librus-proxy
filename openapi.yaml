@@ -1,0 +1,365 @@
+openapi: 3.0.3
+info:
+  title: Librus Proxy API
+  description: Proste API proxy do librus-api (oceny, plan, wiadomości, zadania).
+  version: "0.1.0"
+servers:
+  - url: /
+    description: Relative to current host
+tags:
+  - name: Grades
+  - name: Timetable
+  - name: Messages
+  - name: Homeworks
+  - name: Misc
+paths:
+  /grades:
+    get:
+      tags: [Grades]
+      summary: Pobierz oceny (tylko niepuste przedmioty)
+      parameters:
+        - in: query
+          name: subject
+          schema: { type: string }
+          description: Filtrowanie po fragmencie nazwy przedmiotu (case-insensitive)
+        - in: query
+          name: includeRaw
+          schema: { type: boolean, default: false }
+          description: Dołącz surowe rekordy z librus-api (debug)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GradesResponse"
+
+  /debug/grades:
+    get:
+      tags: [Grades]
+      summary: Surowe dane z client.info.getGrades()
+      responses:
+        "200":
+          description: OK
+
+  /timetable:
+    get:
+      tags: [Timetable]
+      summary: Pobierz plan lekcji (z siatki lub z kalendarza)
+      parameters:
+        - in: query
+          name: date
+          schema: { type: string, format: date }
+          description: Konkretny dzień (YYYY-MM-DD)
+        - in: query
+          name: weekStart
+          schema: { type: string, format: date }
+          description: Poniedziałek tygodnia (mapowanie Monday..Sunday -> daty)
+        - in: query
+          name: from
+          schema: { type: string, format: date }
+          description: Początek zakresu (alternatywa dla weekStart)
+        - in: query
+          name: to
+          schema: { type: string, format: date }
+          description: Koniec zakresu
+        - in: query
+          name: includeRaw
+          schema: { type: boolean, default: false }
+          description: Dołącz surowe rekordy (debug)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TimetableResponse"
+  /timetable/today:
+    get:
+      tags: [Timetable]
+      summary: Plan lekcji tylko na dzisiaj
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TimetableTodayResponse"
+
+  /debug/timetable:
+    get:
+      tags: [Timetable]
+      summary: Surowe dane z client.calendar.getTimetable()
+      responses:
+        "200":
+          description: OK
+
+  /debug/calendar:
+    get:
+      tags: [Timetable]
+      summary: Surowe dane z client.calendar.getCalendar()
+      responses:
+        "200":
+          description: OK
+
+  /messages:
+    get:
+      tags: [Messages]
+      summary: Lista wiadomości z folderu
+      parameters:
+        - in: query
+          name: folderId
+          schema: { type: integer, default: 5 }
+          description: ID folderu (np. 5=Odebrane, 6=Wysłane, 10=Uwagi)
+        - in: query
+          name: page
+          schema: { type: integer }
+          description: Numer strony (jeśli wspierane)
+        - in: query
+          name: includeRaw
+          schema: { type: boolean, default: false }
+          description: Dołącz surowe rekordy (debug)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessagesListResponse"
+
+  /messages/{folderId}/{id}:
+    get:
+      tags: [Messages]
+      summary: Szczegóły jednej wiadomości
+      parameters:
+        - in: path
+          name: folderId
+          required: true
+          schema: { type: integer }
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+        - in: query
+          name: includeRaw
+          schema: { type: boolean, default: false }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageDetailResponse"
+        "404":
+          description: Nie znaleziono
+
+  /messages/receivers:
+    get:
+      tags: [Messages]
+      summary: Wyszukaj potencjalnych adresatów
+      parameters:
+        - in: query
+          name: q
+          schema: { type: string }
+          description: Fraza do wyszukania
+      responses:
+        "200":
+          description: OK
+
+  /announcements:
+    get:
+      tags: [Messages]
+      summary: Lista ogłoszeń
+      responses:
+        "200":
+          description: OK
+
+  /debug/messages:
+    get:
+      tags: [Messages]
+      summary: Surowe dane z listInbox()
+      parameters:
+        - in: query
+          name: folderId
+          schema: { type: integer, default: 5 }
+        - in: query
+          name: page
+          schema: { type: integer }
+      responses:
+        "200":
+          description: OK
+
+  /homeworks:
+    get:
+      tags: [Homeworks]
+      summary: Lista zadań domowych
+      parameters:
+        - in: query
+          name: from
+          schema: { type: string, format: date }
+        - in: query
+          name: to
+          schema: { type: string, format: date }
+        - in: query
+          name: subject
+          schema: { type: string }
+        - in: query
+          name: includeRaw
+          schema: { type: boolean, default: false }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HomeworksListResponse"
+
+  /healthz:
+    get:
+      tags: [Misc]
+      summary: Healthcheck
+      responses:
+        "200":
+          description: OK
+
+components:
+  schemas:
+    GradesResponse:
+      type: object
+      properties:
+        ok: { type: boolean }
+        count: { type: integer }
+        subjects: { type: integer }
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              subject: { type: string }
+              items:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GradeItem"
+    GradeItem:
+      type: object
+      properties:
+        subject: { type: string }
+        value: { type: string, nullable: true, description: "np. +, ✓, 5" }
+        area: { type: string, nullable: true }
+        skill: { type: string, nullable: true }
+        date: { type: string, format: date, nullable: true }
+        teacher: { type: string, nullable: true }
+        addedBy: { type: string, nullable: true }
+
+    TimetableResponse:
+      type: object
+      properties:
+        ok: { type: boolean }
+        days: { type: integer }
+        lessons: { type: integer }
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimetableDay"
+        source: { type: string }
+    TimetableDay:
+      type: object
+      properties:
+        date: { type: string, format: date, nullable: true }
+        dayName: { type: string, nullable: true, description: "np. Monday" }
+        lessons:
+          type: array
+          items:
+            $ref: "#/components/schemas/Lesson"
+    TimetableTodayResponse:
+      type: object
+      properties:
+        ok: { type: boolean }
+        date: { type: string, format: date }
+        lessons:
+          type: array
+          items:
+            $ref: "#/components/schemas/Lesson"
+    Lesson:
+      type: object
+      properties:
+        start: { type: string, nullable: true, example: "08:00" }
+        end: { type: string, nullable: true, example: "08:45" }
+        number: { type: integer, nullable: true }
+        subject: { type: string, nullable: true }
+        room: { type: string, nullable: true }
+        teacher: { type: string, nullable: true }
+        group: { type: string, nullable: true }
+
+    MessagesListResponse:
+      type: object
+      properties:
+        ok: { type: boolean }
+        folderId: { type: integer }
+        total: { type: integer }
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/MessageListItem"
+    MessageListItem:
+      type: object
+      properties:
+        id: { type: integer }
+        folderId: { type: integer }
+        subject: { type: string }
+        sender: { type: string, nullable: true }
+        date: { type: string, format: date-time, nullable: true }
+        read: { type: boolean, nullable: true }
+        hasAttachments: { type: boolean }
+
+    MessageDetailResponse:
+      type: object
+      properties:
+        ok: { type: boolean }
+        data:
+          $ref: "#/components/schemas/MessageDetail"
+    MessageDetail:
+      type: object
+      properties:
+        id: { type: integer }
+        folderId: { type: integer }
+        subject: { type: string }
+        sender: { type: string, nullable: true }
+        to:
+          oneOf:
+            - { type: string }
+            - { type: array, items: { type: string } }
+          nullable: true
+        date: { type: string, format: date-time, nullable: true }
+        body: { type: string, nullable: true }
+        attachments:
+          type: array
+          items:
+            $ref: "#/components/schemas/Attachment"
+    Attachment:
+      type: object
+      properties:
+        name: { type: string }
+        path: { type: string, nullable: true }
+        size: { type: integer, nullable: true }
+        mime: { type: string, nullable: true }
+
+    HomeworksListResponse:
+      type: object
+      properties:
+        ok: { type: boolean }
+        total: { type: integer }
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Homework"
+    Homework:
+      type: object
+      properties:
+        id: { type: integer, nullable: true }
+        subject: { type: string, nullable: true }
+        title: { type: string, nullable: true }
+        description: { type: string, nullable: true }
+        assignedDate: { type: string, format: date, nullable: true }
+        dueDate: { type: string, format: date, nullable: true }
+        teacher: { type: string, nullable: true }
