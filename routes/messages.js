@@ -213,4 +213,146 @@ router.get("/debug/messages", async (req, res) => {
   }
 });
 
+// FEED HTML budowany z istniejących /messages i /messages/{folderId}/{id}
+router.get("/messages/feed", async (req, res) => {
+  try {
+    const folderId = Number(req.query.folderId ?? 5); // 5=Odebrane
+    const limit = Math.min(Number(req.query.limit ?? 50), 200);
+
+    const port = process.env.PORT || 3000;
+    const base = `http://127.0.0.1:${port}`;
+
+    // 1) pobierz listę wiadomości z Twojego działającego endpointu
+    const listResp = await fetch(`${base}/messages?folderId=${folderId}&apiKey=${req.query.apiKey}`);
+    if (!listResp.ok) throw new Error(`list http ${listResp.status}`);
+    const listJson = await listResp.json();
+    const msgs = (listJson?.data ?? [])
+    .sort((a, b) => String(b.date).localeCompare(String(a.date))) // najnowsze najpierw
+    .slice(0, limit); // weź pierwsze N
+
+    // 2) do każdego dociągnij treść z /messages/{folderId}/{id}
+    const details = [];
+    for (const m of msgs) {
+      try {
+        const dResp = await fetch(`${base}/messages/${folderId}/${m.id}?apiKey=${req.query.apiKey}`);
+        if (!dResp.ok) throw new Error(`detail http ${dResp.status}`);
+        const dJson = await dResp.json();
+        const d = dJson?.data || {};
+        details.push({
+          id: m.id,
+          subject: d.subject ?? m.subject ?? "(bez tematu)",
+          sender: d.sender ?? m.sender ?? "",
+          date: d.date ?? m.date ?? "",
+          body: String(d.body ?? "").replace(/\n/g, "<br>"),
+          read: m.read ?? d.read ?? null,
+        });
+      } catch (e) {
+        details.push({
+          id: m.id,
+          subject: m.subject ?? "(błąd pobierania)",
+          sender: m.sender ?? "",
+          date: m.date ?? "",
+          body: "",
+          error: true
+        });
+      }
+    }
+
+    // 3) render HTML
+    const items = details.map(d => `
+      <article class="msg">
+        <h2>${d.subject}</h2>
+        <div class="meta">${d.sender} • ${d.date}${d.read===false ? " • <strong>nieprzeczytana</strong>" : ""}</div>
+        <div class="body">${d.body}</div>
+      </article>
+    `).join("");
+
+    res.type("text/html; charset=utf-8").send(`<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Librus – wiadomości</title>
+<style>
+:root{color-scheme:dark}
+body{margin:0;font:14px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Cantarell, Ubuntu, 'Noto Sans', Arial;background:#111;color:#ddd}
+header{position:sticky;top:0;background:#111;border-bottom:1px solid #222;padding:12px 16px}
+header h1{margin:0;font-size:16px}
+main{padding:8px 16px 40px;max-width:900px;margin:0 auto}
+.msg{padding:14px 0;border-bottom:1px solid #222}
+.msg h2{margin:0 0 6px;font-size:16px;color:#fff}
+.meta{color:#aaa;font-size:12px;margin-bottom:8px}
+</style></head><body>
+<header><h1>📥 Ostatnie ${details.length} wiadomości (folder ${folderId})</h1></header>
+<main>${items || "<p>Brak wiadomości.</p>"}</main>
+</body></html>`);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ ok:false, error: e?.message || "internal_error" });
+  }
+});
+
+// JSON feed z wiadomościami (dla HA)
+router.get("/messages/feed-json", async (req, res) => {
+  try {
+    const folderId = Number(req.query.folderId ?? 5);
+    const limit = Math.min(Number(req.query.limit ?? 50), 200);
+    const unreadOnly = String(req.query.unreadOnly ?? "false").toLowerCase() === "true";
+
+    const port = process.env.PORT || 3000;
+    const base = `http://127.0.0.1:${port}`;
+    const API_KEY = process.env.API_KEY || "";
+    const auth = API_KEY ? { headers: { "x-api-key": API_KEY } } : {};
+
+    // 1️⃣ Pobierz listę wiadomości
+    const listResp = await fetch(`${base}/messages?folderId=${folderId}`, auth);
+    if (!listResp.ok) throw new Error(`list http ${listResp.status}`);
+    const listJson = await listResp.json();
+
+    let msgs = (listJson?.data ?? [])
+      .sort((a, b) => String(b.date).localeCompare(String(a.date))); // najnowsze najpierw
+
+    if (unreadOnly) msgs = msgs.filter(m => m.read === false);
+    msgs = msgs.slice(0, limit);
+
+    // 2️⃣ Pobierz szczegóły
+    const details = [];
+    for (const m of msgs) {
+      try {
+        const dResp = await fetch(`${base}/messages/${folderId}/${m.id}`, auth);
+        if (!dResp.ok) throw new Error(`detail http ${dResp.status}`);
+        const dJson = await dResp.json();
+        const d = dJson?.data || {};
+        details.push({
+          id: m.id,
+          subject: d.subject ?? m.subject ?? "(bez tematu)",
+          sender: d.sender ?? m.sender ?? "",
+          date: d.date ?? m.date ?? "",
+          read: m.read ?? d.read ?? null,
+          body: String(d.body ?? "").replace(/\r?\n/g, "\n"),
+          attachments: d.attachments ?? [],
+        });
+      } catch (e) {
+        details.push({
+          id: m.id,
+          subject: m.subject ?? "(błąd pobierania)",
+          sender: m.sender ?? "",
+          date: m.date ?? "",
+          body: "",
+          error: true,
+        });
+      }
+    }
+
+    // 3️⃣ Zwróć JSON
+    res.json({
+      ok: true,
+      count: details.length,
+      folderId,
+      unreadOnly,
+      items: details,
+    });
+  } catch (e) {
+    console.error("feed-json error:", e);
+    res.status(500).json({ ok: false, error: e?.message || "internal_error" });
+  }
+});
+
 module.exports = router;

@@ -7,16 +7,27 @@ const app = express();
 const swaggerUi = require("swagger-ui-express");
 const YAML = require("yamljs");
 const openapiDocument = YAML.load("./openapi.yaml");
-app.use("/docs", swaggerUi.serve, swaggerUi.setup(openapiDocument, { explorer: true }));
+app.use("/docs", swaggerUi.serve, swaggerUi.setup(openapiDocument, {
+  explorer: true,
+  swaggerOptions: { persistAuthorization: true }
+}));
+
 app.get("/openapi.json", (_req, res) => res.json(openapiDocument));
 // ===================================
-const REQUIRED_KEY = process.env.API_KEY || "";
+const API_KEY = process.env.API_KEY;
 
 app.use((req, res, next) => {
-  if (!REQUIRED_KEY) return next(); // bez klucza – wyłączone
-  const key = req.get("X-API-Key");
-  if (key && key === REQUIRED_KEY) return next();
-  res.status(401).json({ ok: false, error: "unauthorized" });
+  if (!API_KEY) return next(); // jeśli nie ustawiono klucza – przepuszczamy wszystko
+
+  const headerKey = req.get("x-api-key");
+  const queryKey = req.query.apiKey;
+
+  // akceptuj klucz w nagłówku lub w URL
+  if (headerKey === API_KEY || queryKey === API_KEY) {
+    return next();
+  }
+
+  return res.status(401).json({ ok:false, error: "unauthorized" });
 });
 
 const gradesRoutes = require("./routes/grades");

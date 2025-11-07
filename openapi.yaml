@@ -6,6 +6,9 @@ info:
 servers:
   - url: /
     description: Relative to current host
+security:
+  - XApiKey: []       # wariant 1: nagłówek
+  - QueryApiKey: []   # wariant 2: query param
 tags:
   - name: Grades
   - name: Timetable
@@ -166,6 +169,107 @@ paths:
         "200":
           description: OK
 
+  /messages/feed:
+    get:
+      tags: [Messages]
+      summary: "Wizualny podgląd wiadomości (feed HTML)"
+      description: >
+        Zwraca najnowsze wiadomości w formacie **HTML**, gotowe do osadzenia np. w
+        panelu `iframe` w Home Assistant lub jako prosty mikroblog.  
+        Endpoint wymaga autoryzacji (`X-API-Key` w nagłówku lub `?apiKey=` w URL).  
+        Można ograniczyć liczbę wiadomości i wybrać folder Librusa (domyślnie 5 = Odebrane).
+
+        💡 Przykładowe użycie w Home Assistant:
+
+        ```yaml
+        panel_iframe:
+          librus_messages:
+            title: "📬 Wiadomości Librus"
+            icon: mdi:email
+            url: "http://192.168.1.123:3300/messages/feed?apiKey=TWÓJ_KLUCZ"
+        ```
+
+      parameters:
+        - name: folderId
+          in: query
+          required: false
+          description: "ID folderu Librusa (np. 5 = Odebrane, 10 = Uwagi)"
+          schema:
+            type: integer
+            default: 5
+        - name: limit
+          in: query
+          required: false
+          description: "Ilość wiadomości do wyświetlenia (max 200)"
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: "Lista wiadomości w formacie HTML"
+          content:
+            text/html:
+              schema:
+                type: string
+                example: |
+                  <!doctype html>
+                  <html>
+                  <body>
+                    <header><h1>📥 Ostatnie 10 wiadomości</h1></header>
+                    <main>
+                      <article class="msg">
+                        <h2>Informacja dla rodziców</h2>
+                        <div class="meta">Bruchajzer Klaudia • 2025-11-07</div>
+                        <div class="body">Prosimy o przyniesienie podręczników...</div>
+                      </article>
+                    </main>
+                  </body>
+                  </html>
+        '401':
+          description: "Brak lub błędny klucz API"
+        '500':
+          description: "Błąd wewnętrzny serwera"
+
+  /messages/feed-json:
+    get:
+      tags: [Messages]
+      summary: "Lista wiadomości (JSON) do użycia w HA"
+      description: >
+        Zwraca ostatnie wiadomości jako JSON (najświeższe na górze).
+        Wymaga autoryzacji (nagłówek `X-API-Key` lub parametr `?apiKey=`).
+      parameters:
+        - name: apiKey
+          in: query
+          required: false
+          description: "Klucz API (alternatywa dla nagłówka `X-API-Key`)."
+          schema: { type: string }
+        - name: folderId
+          in: query
+          required: false
+          description: "ID folderu (5 = Odebrane, 10 = Uwagi)."
+          schema: { type: integer, default: 5 }
+        - name: limit
+          in: query
+          required: false
+          description: "Liczba wiadomości (max 200)."
+          schema: { type: integer, default: 50 }
+        - name: unreadOnly
+          in: query
+          required: false
+          description: "Tylko nieprzeczytane (true/false)."
+          schema: { type: boolean, default: false }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessagesFeedResponse"
+        "401":
+          description: Brak / błędny klucz API
+        "500":
+          description: Błąd serwera
+
   /announcements:
     get:
       tags: [Messages]
@@ -223,6 +327,15 @@ paths:
           description: OK
 
 components:
+  securitySchemes:
+    XApiKey:                # klucz w nagłówku
+      type: apiKey
+      in: header
+      name: x-api-key
+    QueryApiKey:            # klucz w query
+      type: apiKey
+      in: query
+      name: apiKey
   schemas:
     GradesResponse:
       type: object
