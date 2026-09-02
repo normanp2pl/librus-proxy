@@ -2,7 +2,7 @@
 
 const express = require("express");
 const router = express.Router();
-const { ensureAuth, getClient, resetAuth } = require("../lib/librus");
+const { ensureAuth, getClient, resetAuth, fetchGrades, getGradesNewSchema } = require("../lib/librus");
 
 /** Parser pola `info` (plusiki w I–III klasie) */
 function parseInfo(info = "") {
@@ -40,7 +40,7 @@ async function fetchGradesUnified() {
   const client = getClient();
 
   const run = async () => {
-    const grades = await client.info.getGrades();
+    const grades = await fetchGrades(client);
     const result = grades
       .map(s => ({
         subject: s.name,
@@ -110,13 +110,16 @@ router.get("/grades", async (req, res) => {
   }
 });
 
-/** DEBUG: surowe getGrades() */
+/** DEBUG: surowe getGrades() (biblioteka) + parser nowego schematu */
 router.get("/debug/grades", async (_req, res) => {
   try {
     await ensureAuth();
     const client = getClient();
-    const raw = await safeCall(() => client.info.getGrades());
-    res.json({ ok: true, raw });
+    const [raw, rawNew] = await Promise.all([
+      safeCall(() => client.info.getGrades()),
+      safeCall(() => getGradesNewSchema(client)),
+    ]);
+    res.json({ ok: true, raw, rawNew });
   } catch (e) {
     console.error(e);
     res.status(500).json({ ok: false, error: e?.message || "internal_error" });

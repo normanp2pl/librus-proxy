@@ -14,6 +14,10 @@ app.use("/docs", swaggerUi.serve, swaggerUi.setup(openapiDocument, {
 
 app.get("/openapi.json", (_req, res) => res.json(openapiDocument));
 // ===================================
+
+// healthcheck przed middleware klucza API — monitoring nie wymaga klucza
+app.get("/healthz", (_req, res) => res.json({ ok: true }));
+
 const API_KEY = process.env.API_KEY;
 
 app.use((req, res, next) => {
@@ -44,9 +48,6 @@ app.use(gradesRoutes);
 app.use(timetableRoutes);
 app.use(messagesRoutes);
 app.use(homeworksRoutes);
-
-// healthcheck
-app.get("/healthz", (_req, res) => res.json({ ok: true }));
 
 app.listen(PORT, () => {
   console.log(`API listening on :${PORT}`);
